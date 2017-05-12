@@ -18,6 +18,12 @@
 #include <linux/proc_fs.h>
 #include "../lct_tp_fm_info.h"
 
+#define HX_EF_TEST 	//enable Edge Filter Test
+
+#if defined(HX_EF_TEST) && defined(HX_EDGE_FILTER)
+#define MARGIN_TEST 			100
+#endif
+
 #define HIMAX_I2C_RETRY_TIMES 10
 #define SUPPORT_FINGER_DATA_CHECKSUM 0x0F
 #define TS_WAKE_LOCK_TIMEOUT		(2 * HZ)
@@ -1406,6 +1412,19 @@ bypass_checksum_failed_packet:
 					w = buf[(ts->nFinger_support * 4) + loop_i];
 					finger_num--;
 
+				#ifdef HX_EDGE_FILTER
+					if(ts->EF_enable) {
+						if(x < ts->margin)
+							x = ts->margin;
+						else if(x > (ts->pdata->screenWidth - ts->margin))
+							x = ts->pdata->screenWidth;
+						if(y < ts->margin)
+							y = ts->margin;
+						else if(y > (ts->pdata->screenHeight - ts->margin))
+							y = ts->pdata->screenWidth;
+					}
+				#endif
+
 					if (ts->protocol_type == PROTOCOL_TYPE_B)
 						input_mt_slot(ts->input_dev, loop_i);
 
@@ -1585,6 +1604,11 @@ static int himax_ts_register_interrupt(struct i2c_client *client)
 
 	ts->irq_enabled = 0;
 	ts->use_irq = 1;
+
+#if defined(HX_EF_TEST) && defined(HX_EDGE_FILTER)
+	ts->EF_enable = 1;
+	ts->margin = MARGIN_TEST;
+#endif
 
 	ret = request_threaded_irq(client->irq, NULL, himax_ts_thread,
 		IRQF_TRIGGER_LOW | IRQF_ONESHOT, client->name, ts);

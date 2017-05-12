@@ -86,6 +86,7 @@
 #define HX_SMART_WAKEUP
 //#define HX_PALM_REPORT
 #define HX_ESD_WORKAROUND
+#define HX_EDGE_FILTER			//enable Edge Filter (pixel frame detection margin)
 
 #define HX_85XX_A_SERIES_PWON		1
 #define HX_85XX_B_SERIES_PWON		2
@@ -231,6 +232,11 @@ struct himax_ts_data {
 #ifdef HX_SMART_WAKEUP
 	uint8_t SMWP_enable;
 	struct wake_lock ts_SMWP_wake_lock;
+#endif
+
+#ifdef HX_EDGE_FILTER
+	uint8_t EF_enable;
+	int margin;
 #endif
 };
 
