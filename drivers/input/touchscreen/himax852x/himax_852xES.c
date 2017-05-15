@@ -1423,11 +1423,11 @@ bypass_checksum_failed_packet:
 						if(x < ts->margin)
 							x = ts->margin;
 						else if(x > (ts->pdata->screenWidth - ts->margin))
-							x = ts->pdata->screenWidth;
+							x = ts->pdata->screenWidth - ts->margin;
 						if(y < ts->margin)
 							y = ts->margin;
 						else if(y > (ts->pdata->screenHeight - ts->margin))
-							y = ts->pdata->screenWidth;
+							y = ts->pdata->screenWidth - ts->margin;
 					}
 				#endif
 
