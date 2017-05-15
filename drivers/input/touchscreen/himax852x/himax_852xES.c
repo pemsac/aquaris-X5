@@ -18,6 +18,18 @@
 #include <linux/proc_fs.h>
 #include "../lct_tp_fm_info.h"
 
+
+#ifdef HX_EDGE_FILTER
+
+#define HX_EF_TEST 	//enable Edge Filter Test
+#define HIMAX_EF_PROC_FILE		"Edge_Filter"
+static struct proc_dir_entry *EF_proc = NULL;
+
+#ifdef HX_EF_TEST
+#define MARGIN_TEST 			100
+#endif
+#endif
+
 #define HIMAX_I2C_RETRY_TIMES 10
 #define SUPPORT_FINGER_DATA_CHECKSUM 0x0F
 #define TS_WAKE_LOCK_TIMEOUT		(2 * HZ)
@@ -1406,6 +1418,19 @@ bypass_checksum_failed_packet:
 					w = buf[(ts->nFinger_support * 4) + loop_i];
 					finger_num--;
 
+				#ifdef HX_EDGE_FILTER
+					if(ts->EF_enable) {
+						if(x < ts->margin)
+							x = ts->margin;
+						else if(x > (ts->pdata->screenWidth - ts->margin))
+							x = ts->pdata->screenWidth - ts->margin;
+						if(y < ts->margin)
+							y = ts->margin;
+						else if(y > (ts->pdata->screenHeight - ts->margin))
+							y = ts->pdata->screenWidth - ts->margin;
+					}
+				#endif
+
 					if (ts->protocol_type == PROTOCOL_TYPE_B)
 						input_mt_slot(ts->input_dev, loop_i);
 
@@ -1585,6 +1610,11 @@ static int himax_ts_register_interrupt(struct i2c_client *client)
 
 	ts->irq_enabled = 0;
 	ts->use_irq = 1;
+
+#if defined(HX_EF_TEST) && defined(HX_EDGE_FILTER)
+	ts->EF_enable = 1;
+	ts->margin = MARGIN_TEST;
+#endif
 
 	ret = request_threaded_irq(client->irq, NULL, himax_ts_thread,
 		IRQF_TRIGGER_LOW | IRQF_ONESHOT, client->name, ts);
@@ -2331,6 +2361,54 @@ static const struct file_operations himax_gesture_proc_fops= {
 };
 #endif
 
+#ifdef HX_EDGE_FILTER
+static ssize_t himax_EF_proc_read(struct file *file, char __user *buf, size_t size, loff_t *ppos)
+{
+	int cnt= 0;
+	char *page = NULL;
+	page = kzalloc(50, GFP_KERNEL);
+	cnt = sprintf(page, "Himax Edge Filter\n");
+	cnt = simple_read_from_buffer(buf, size, ppos, page, cnt);
+	kfree(page);
+	return cnt;
+}
+
+static ssize_t himax_EF_proc_write(struct file *file, const char __user *buf, size_t size, loff_t *ppos)
+{
+	char data[3];
+	int margin, succ;
+	struct himax_ts_data *ts = private_ts;
+
+	if (copy_from_user(data, buf, 3)) {
+		return -EFAULT;
+	}
+
+	succ = sscanf(data, "%d", &margin);
+	if(succ == 0){
+		return -EINVAL;
+	}
+
+	if (atomic_read(&ts->suspend_mode) == 0) {
+		if (margin == 0){
+			ts->EF_enable = 0;
+		}
+		else if ((margin > 0) && (margin <= 360)){
+			ts->EF_enable = 1;
+			ts->margin = margin;
+		}
+		else{
+			return -EINVAL;
+		}
+	}
+	return size;
+}
+
+static const struct file_operations himax_EF_proc_fops= {
+	.read	= himax_EF_proc_read,
+	.write	= himax_EF_proc_write,
+};
+#endif
+
 extern int is_tp_driver_loaded;
 static int himax852xes_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -2513,6 +2591,12 @@ static int himax852xes_probe(struct i2c_client *client, const struct i2c_device_
 	gesture_proc = proc_create_data(HIMAX_GESTURE_PROC_FILE, 0666, NULL, &himax_gesture_proc_fops, NULL);
 	if (IS_ERR_OR_NULL(gesture_proc))
 		pr_err("create proc file %s failed !\n", HIMAX_GESTURE_PROC_FILE);
+#endif
+
+#ifdef HX_EDGE_FILTER
+	EF_proc = proc_create_data(HIMAX_EF_PROC_FILE, 0666, NULL, &himax_EF_proc_fops, NULL);
+	if (IS_ERR_OR_NULL(EF_proc))
+	pr_err("create proc file %s failed !\n", HIMAX_EF_PROC_FILE);
 #endif
 
 #ifdef SUPPORT_READ_TP_VERSION
